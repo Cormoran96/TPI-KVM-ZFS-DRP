@@ -1,0 +1,47 @@
+#!/bin/bash -
+#title          :shutdownKVM
+#description    :This script shutdown all vm of the kvm
+#author         :Lucas Dousse
+#date           :20170512
+#version        :0.1
+#usage          :./shutdownKVM
+#notes          :
+#bash_version   :4.3.46(1)-release
+#============================================================================
+
+# Logger
+exec 1> >(logger -s -t $(basename $0)) 2>&1
+
+#####################
+#     FUNCTIONS     #
+#####################
+function get_uuid() { 							# Fonction récupérant les uuid des vm allumée
+	virsh list --uuid > /tmp/shutdownKVM
+    sed -i '/^$/d' /tmp/shutdownKVM
+	if [[ -s /tmp/shutdownKVM ]]; then
+		go_shut 								# Si il y a des vm allumée alors go a la fonction pour les éteindre
+	else
+		echo "[ OK ] All vm is already down"
+		rm -rf /tmp/shutdownKVM
+		exit 0;
+	fi
+}
+
+function go_shut() {   							# fonction pour éteindre les vm
+	while IFS= read -r line 					# Boucle éteignant les vm
+do
+# display $line or do somthing with $line
+    printf  "$line" Shutdown
+    virsh shutdown "$line"
+done < "/tmp/shutdownKVM"
+rm -rf /tmp/shutdownKVM
+exit 0;
+}
+
+
+#####################
+#     EXECUTION     #
+#####################
+echo "[ INFO ] Starting going down"
+get_uuid
+echo "[ INFO ] End of shutdown"

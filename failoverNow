@@ -1,0 +1,142 @@
+#!/bin/bash -
+#title          :failoverNow
+#description    :This script copy all data with ZFS send and rsync for now
+#author         :Lucas Dousse
+#date           :20170516
+#version        :0.1
+#usage          :./failoverNow
+#notes          :
+#bash_version   :4.3.46(1)-release
+#============================================================================
+
+
+# Logger
+exec 1> >(logger -s -t $(basename $0)) 2>&1
+
+#####################
+#     VARIABLES     #
+#####################
+srv_dest="srv-tpi-ldo-02.dsprod.ch" # Serveur de destination
+
+src_pool="zroot"      				# Pool ZFS de départ
+dest_pool="zroot/new"				# Pool ZFS de réception sur le serveur distant
+
+snap_prefix="today_" 				# Préfix pour le nom du snapshot
+snap_time=$(date '+%H%M')  			# Timestamp for snapshot
+snap_time_full=$(date '+%H')
+snap_time_old=0
+let "snap_time_old=$snap_time_full-1"
+snap_new="$src_pool"@"$snap_prefix""$snap_time"  		# Forge du nom du nouveau snapshot
+
+################
+#     TEST     #
+################
+if [ $snap_time_old -lt 10 ] 		# Test si l'heure et inférieur a 10 heure alors 0X
+then
+    snap_time_old=0"$snap_time_old"
+fi
+
+if [ $snap_time_old -lt 0 ] 		# Test si l'heure et inférieur a minuit alors 23
+then
+    snap_time_old=23
+fi
+
+snap_old="$src_pool"@"$snap_prefix""$snap_time_old" 	# Forge du nom de l'ancien snapshot
+
+
+#####################
+#     FUNCTIONS     #
+#####################
+function zfs_snap() {  							# Fonction de départ qui crée le snapshot et vérifie que il existe un plus vieux pour faire de l'incrémental
+	zfs snapshot -r "$snap_new" 						# Create the snapshot
+	zfs list -t snapshot > /tmp/snapshot.txt			# Export de la liste des snapshot
+
+	if grep -Fq "$snap_new" /tmp/snapshot.txt 			# Si | test si le nouveau snapshot a été fait
+		then
+		echo "[ OK ] New snapshot exist !" 
+		if grep -Fq "$snap_old" /tmp/snapshot.txt 		# Si | test si le snapshot vieux de 1 heure existe
+			then
+			echo "[ OK ] Older 1 hour snapshot exist !"
+			rm -rf /tmp/snapshot.txt
+			zfs_send 									# Si oui | Il va aller dans la fonction zfs_send, afin de faire de l'incrementiel
+		else 									
+			echo "[ WARNING ] Older 1 hour snapshot don't exist !"
+            rm -rf /tmp/snapshot.txt
+			zfs_send_first 								# Si non | Il va créer le premier backup full
+		fi
+	else
+		echo "[ ERROR ] unknown"
+		rm -rf /tmp/snapshot.txt
+		exit -1;
+	fi
+}
+
+function zfs_send_first() {  					# Fonction de backup full avec zfs send
+	echo "[ INFO ] Starting sending first snapshot..."
+	zfs send "$snap_new" | ssh "$srv_dest" zfs recv "$dest_pool"  	# Envoie tout le contenu sur le serveur distant en un bloc
+	zfs_control_recv
+}
+
+function zfs_send() { 							# Fonction de backup incrementiel avec zfs send
+	echo "[ INFO ] Starting sending incremental snapshot..."
+	zfs send -R -i  "$snap_old" "$snap_new" | ssh "$srv_dest" zfs recv "$dest_pool" # Envoie le diff du vieux snapshot sur le nouveaux serveur
+	zfs_control_recv
+}
+
+function zfs_control_recv() { 					# Fonction de control que le snapshot envoyer aie bien été reçu de l'autre coté
+	ssh "$srv_dest" 'zfs list -t snapshot > /tmp/snapshot.txt'
+	ssh "$srv_dest" 'if grep -Fq "$snap_new" /tmp/snapshot.txt; then echo "[ OK ] destination have good receive snapshot !"; else exit -1; fi'
+	ssh "$srv_dest" 'rm -rf /tmp/snapshot.txt'
+	send_xml
+}
+
+function send_xml() { 							# Fonction d'envoie des fichier de config des vm
+	echo "[ INFO ] Sending xml files for KVM..."
+	rsync -ra /etc/libvirt/qemu/ "$srv_dest":/etc/libvirt/qemu/
+	modifiaction_xml
+}
+
+function modifiaction_xml() { 					# Modification des xml, car nouveau chemin n'est pas le meme que l'ancien
+	echo "[ INFO ] Modification of xml for new $dest_pool ..."
+	ssh "$srv_dest" "sed -i 's/zroot/zroot\/new/g' /etc/libvirt/qemu/*.xml"
+	restart_kvm
+}
+
+function restart_kvm() { 						# Fonction de restart de kvm afin de prendre en compte les modifs
+	echo "[ INFO ] Restarting kvm for apply change..."
+	ssh "$srv_dest" service libvirt-bin restart
+	shutdown_restart
+}
+
+function shutdown_restart() {
+	/usr/bin/shutdownKVM
+	virsh list --uuid > /tmp/shutdownKVM
+    sed -i '/^$/d' /tmp/shutdownKVM
+	if [[ -s /tmp/shutdownKVM ]]; then
+		/usr/bin/shutdownKVM 								# Si il y a des vm allumée alors go a la fonction pour les éteindre
+	else
+		echo "[ OK ] All vm is already down"
+		rm -rf /tmp/shutdownKVM
+	fi
+
+	ssh "$srv_dest" "/usr/bin/startKVM"
+
+}
+
+#####################
+#     EXECUTION     #
+#####################
+zfs_snap
+
+#################
+#     UNSET     #
+#################
+unset snap_time_old
+unset srv_dest
+unset src_pool
+unset dest_pool
+unset snap_prefix
+unset snap_time
+unset snap_time_full
+unset snap_new
+unset snap_old

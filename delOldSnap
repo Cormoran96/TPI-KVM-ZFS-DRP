@@ -1,0 +1,27 @@
+#!/bin/bash -   
+#title          :delOldSnap
+#description    :This script delete old Snapshot
+#author         :Lucas Dousse
+#date           :20170512
+#version        :0.1    
+#usage          :./delOldSnap.sh
+#notes          :       
+#bash_version   :4.3.46(1)-release
+#============================================================================
+
+# Logger
+exec 1> >(logger -s -t $(basename $0)) 2>&1
+
+zfs list -H -t snapshot -o name -S creation | sed '1d' | sed '1d' | sed '1d' > /tmp/snap_srv.txt  # Liste les snapshot et supprime les 3 derniers du fichiers
+
+if [[ -s /tmp/snap_srv.txt ]]; then							# Test si le fichier n'est pas vide
+	while IFS='' read -r line || [[ -n "$line" ]]; do 		# Boucle pour lire et supprimer les vieux snapshot
+   		echo "[ INFO ] Delete: $line"
+   		zfs destroy "$line"
+	done < "/tmp/snap_srv.txt"
+	rm -rf /tmp/snap_srv.txt
+else
+	echo "[ OK ] snapshot is already delete" 				# Sinon ne fait rien
+	rm -rf /tmp/snap_srv.txt
+	exit 0;
+fi

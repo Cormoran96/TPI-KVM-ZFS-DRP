@@ -1,0 +1,47 @@
+#!/bin/bash -
+#title          :startKVM
+#description    :This script shutdown all vm of the kvm
+#author         :Lucas Dousse
+#date           :20170512
+#version        :0.1
+#usage          :./startKVM
+#notes          :
+#bash_version   :4.3.46(1)-release
+#============================================================================
+
+# Logger
+exec 1> >(logger -s -t $(basename $0)) 2>&1
+
+#####################
+#     FUNCTIONS     #
+#####################
+function get_uuid() { 							# Fonction récupérant les uuid des vm allumée
+	virsh list --uuid --all > /tmp/startKVM
+    sed -i '/^$/d' /tmp/startKVM
+	if [[ -s /tmp/startKVM ]]; then
+		go_start 								# Si il y a des vm éteinte alors go a la fonction pour les start
+	else
+		echo "[ OK ] All vm is already Up"
+		rm -rf /tmp/startKVM
+		exit 0;
+	fi
+}
+
+function go_start() { 							# fonction pour start les vm
+	while IFS= read -r line 					# Boucle démarent les vm
+do
+# display $line or do somthing with $line
+    printf  "$line" Shutdown
+    virsh start "$line"
+done < "/tmp/startKVM"
+rm -rf /tmp/startKVM
+exit 0;
+}
+
+
+#####################
+#     EXECUTION     #
+#####################
+echo "Starting all vm"
+get_uuid
+echo "End of start"
