@@ -1,8 +1,12 @@
 # TPI-KVM-ZFS-DRP
+## prerequisites
+* ZFS
+* qemu-kvm
 ## Definitions of script
-### delOldSnap  
+### replicationZFS
+This script work in crontab. All function   
 ### failoverNow  
-### replicationZFS  
+### delOldSnap  
 ### shutdownKVM  
 ### startKVM
 
