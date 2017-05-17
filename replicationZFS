@@ -3,7 +3,7 @@
 #description    :This script copy all data with ZFS send and rsync
 #author         :Lucas Dousse
 #date           :20170512
-#version        :1.1.3
+#version        :1.1.4
 #usage          :./replicationzfs
 #notes          :
 #bash_version   :4.3.46(1)-release
@@ -35,7 +35,7 @@ then
     snap_time_old=0"$snap_time_old"
 fi
 
-if [ $snap_time_old -lt 0 ] 		# Test si l'heure et inférieur a minuit alors 23
+if [ $snap_time == 00 ] 		# Test si l'heure et inférieur a minuit alors 23
 then
     snap_time_old=23
 fi
