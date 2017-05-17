@@ -36,7 +36,7 @@ then
     snap_time_old=0"$snap_time_old"
 fi
 
-if [ $snap_time_old -lt 0 ] 		# Test si l'heure et inférieur a minuit alors 23
+if [ $snap_time == 00 ] 		# Test si l'heure et inférieur a minuit alors 23
 then
     snap_time_old=23
 fi
