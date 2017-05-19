@@ -31,6 +31,13 @@ snap_new="$src_pool"@"$snap_prefix""$snap_time"  		# Forge du nom du nouveau sna
 ################
 #     TEST     #
 ################
+
+ping -c 1 $srv_dest; PING_TEST=$?
+if [ $PING_TEST != 0]
+	echo "[ ERROR ] Host $srv_dest is not available !" 
+	exit -1;
+
+
 if [ $snap_time_old -lt 10 ] 		# Test si l'heure et inférieur a 10 heure alors 0X
 then
     snap_time_old=0"$snap_time_old"
