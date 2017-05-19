@@ -24,7 +24,7 @@ dest_pool="zroot/new"				# Pool ZFS de réception sur le serveur distant
 snap_prefix="today_" 				# Préfix pour le nom du snapshot
 snap_time=$(date '+%H')  			# Timestamp for snapshot
 snap_time_old=0
-let "snap_time_old=$snap_time-1"
+let "snap_time_old=${snap_time#0}-1"
 snap_new="$src_pool"@"$snap_prefix""$snap_time"  		# Forge du nom du nouveau snapshot
 
 ################
